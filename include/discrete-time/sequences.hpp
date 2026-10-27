@@ -1,41 +1,113 @@
 #pragma once
 #include <cstddef>
 #include <memory>
+#include <cmath>
+#include <cassert>
+#include <span>
+namespace dsp::discrete_time{
 
-struct DiscreteTimeSequence {
-    std::size_t n;
-    std::unique_ptr<float[]> sequence;
 
-    explicit DiscreteTimeSequence(std::size_t n)
-        : n(n), sequence(std::make_unique<float[]>(n)) {}
+class DiscreteTimeSequence {
+public:
+    explicit DiscreteTimeSequence(std::size_t n, std::ptrdiff_t start = 0)
+        : start_(start), n_(n), sequence_(std::make_unique<float[]>(n)) {}
 
-    float& operator[](std::size_t i) { return sequence[i]; }
-    const float& operator[](std::size_t i) const { return sequence[i]; }
+    std::ptrdiff_t end() const { return start_ + static_cast<ptrdiff_t>(n_); }
+    std::ptrdiff_t start() const { return start_;}
+    std::size_t size() const { return n_; }
+    void set_start(std::ptrdiff_t s) { start_ = s; }
+    // void resize()
+
+    std::span<float> samples() {return {sequence_.get(), n_}; }
+    std::span<const float> samples() const { return {sequence_.get(), n_}; }
+
+    // Value access
+    float operator()(std::ptrdiff_t t) const{
+        std::ptrdiff_t i = t - start_;
+        if (i < 0 || i >= static_cast<std::ptrdiff_t>(n_)) return 0.0;
+        return sequence_[i];
+    }
+    // Array access
+    float& operator[](std::size_t i) { 
+        assert(i < n_);
+        return sequence_[i];
+    }
+
+    const float& operator[](std::size_t i) const { 
+        assert(i < n_);
+        return sequence_[i]; 
+    }
+    
 
     //Deep copy
-    DiscreteTimeSequence(const DiscreteTimeSequence& rhs) : n(rhs.n), sequence(std::make_unique<float[]>(rhs.n)){
-    	std::copy(rhs.sequence.get(), rhs.sequence.get()+n, this->sequence.get());
+    DiscreteTimeSequence(const DiscreteTimeSequence& rhs) 
+        : start_(rhs.start_), n_(rhs.n_), sequence_(std::make_unique<float[]>(rhs.n_)){
+    	std::copy(rhs.sequence_.get(), rhs.sequence_.get()+n_, this->sequence_.get());
     }
 
     DiscreteTimeSequence& operator=(const DiscreteTimeSequence& rhs) {
     	DiscreteTimeSequence tmp(rhs);
-    	std::swap(n,tmp.n);
-    	std::swap(this->sequence,tmp.sequence);
+        std::swap(this->start_, tmp.start_);
+    	std::swap(this->n_,tmp.n_);
+    	std::swap(this->sequence_,tmp.sequence_);
     	return *this;
     }
+
+    DiscreteTimeSequence& operator*=(const std::size_t a) {
+        for (std::size_t i; i < n_; ++i) {
+            sequence_[i] *= a;
+        }
+        return *this;
+    }
+
     // std::move
     DiscreteTimeSequence(DiscreteTimeSequence&&) noexcept = default;
     DiscreteTimeSequence& operator=(DiscreteTimeSequence&&) noexcept = default;
+
+private:
+    std::ptrdiff_t start_;
+    std::size_t n_;
+    std::unique_ptr<float[]> sequence_;
 };
 
-DiscreteTimeSequence delayed_copy(const DiscreteTimeSequence& rhs, std::size_t delay) {
-	DiscreteTimeSequence out(rhs.n + delay);
-	std::copy(rhs.sequence.get(), rhs.sequence.get()+rhs.n, out.sequence.get() + delay);
+inline DiscreteTimeSequence operator+(const DiscreteTimeSequence& x1,
+                                      const DiscreteTimeSequence& x2) {
+    std::ptrdiff_t first = std::min(x1.start(), x2.start());
+    std::ptrdiff_t last = std::max(x1.end(),x2.end());
+    DiscreteTimeSequence out(static_cast<size_t>(last - first), first);
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        std::ptrdiff_t t = first + static_cast<std::ptrdiff_t>(i);
+        out[i] = x1(t) + x2(t);
+    }
+    return out;
+}
+
+inline DiscreteTimeSequence delayed_copy(DiscreteTimeSequence x, std::ptrdiff_t d) {
+	x.set_start(x.start() + d);
+	return x;
+}
+
+inline DiscreteTimeSequence unit_sample_sequence(std::size_t n, std::ptrdiff_t start) {
+	DiscreteTimeSequence out(n,start);
+	out[start] = 1;
 	return out;
 }
 
-DiscreteTimeSequence unit_sample_sequence(std::size_t n) {
-	DiscreteTimeSequence out(n);
-	out[0] = 1;
-	return out;
+inline DiscreteTimeSequence unit_step_sequence(std::size_t n, std::ptrdiff_t start) {
+    DiscreteTimeSequence out(n,start);
+    for (std::size_t i = start; i < n-start; ++i) {
+        out[i] = 1.0f;
+    }
+    return out;
+}
+
+inline DiscreteTimeSequence expontential_sequence(std::size_t n, std::ptrdiff_t start, float A, float alpha) {
+    DiscreteTimeSequence out(n,start);
+    for (std::size_t i = 0; i < n; ++i) {
+        std::ptrdiff_t t = start + static_cast<std::ptrdiff_t>(i);
+        out[i] = A * std::pow(alpha,t);
+    }
+    return out;
+}
+
 }
