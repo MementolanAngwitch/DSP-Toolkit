@@ -24,7 +24,7 @@ public:
     std::span<float> samples() {return {sequence_.get(), n_}; }
     std::span<const float> samples() const { return {sequence_.get(), n_}; }
 
-    // Value access
+    // Access by t
     float operator()(std::ptrdiff_t t) const{
         std::ptrdiff_t i = t - start_;
         if (i < 0 || i >= static_cast<std::ptrdiff_t>(n_)) return 0.0;
@@ -110,25 +110,49 @@ inline DiscreteTimeSequence delayed_copy(DiscreteTimeSequence x, std::ptrdiff_t 
 	return x;
 }
 
+inline DiscreteTimeSequence uniform_sequence(float val, std::size_t n, std::ptrdiff_t start =0) {
+    DiscreteTimeSequence out(n,start);
+    for (std::size_t i =0; i < n; ++i) {
+        out[i] = val;
+    }
+    return out;
+}
+
 inline DiscreteTimeSequence unit_sample_sequence(std::size_t n, std::ptrdiff_t start=0) {
     DiscreteTimeSequence out(n,start);
-	out[0] = 1.0f;
+    if (start <= 0) {
+        out[-start] = 1.0f;
+    }
 	return out;
 }
 
 inline DiscreteTimeSequence unit_step_sequence(std::size_t n, std::ptrdiff_t start=0) {
     DiscreteTimeSequence out(n,start);
-    for (std::size_t i = 0; i < n; ++i) {
-        out[i] = 1.0f;
+    if (start < 0) {
+        out = out + uniform_sequence(1,n-start,0);
+    } 
+    else{ // all ones
+        for (std::size_t i = 0; i < n; ++i) {
+            out = uniform_sequence(1,n,start);
+        }
     }
     return out;
 }
 
-inline DiscreteTimeSequence expontential_sequence(float A, float alpha, std::size_t n, std::ptrdiff_t start = 0) {
+inline DiscreteTimeSequence exponential_sequence(float A, float alpha, std::size_t n, std::ptrdiff_t start = 0) {
     DiscreteTimeSequence out(n,start);
     for (std::size_t i = 0; i < n; ++i) {
         std::ptrdiff_t t = start + static_cast<std::ptrdiff_t>(i);
         out[i] = A * std::pow(alpha,t);
+    }
+    return out;
+}
+
+inline DiscreteTimeSequence sinusoidal_sequence(double A, double omega, double phi, std::size_t n, std::ptrdiff_t start = 0) {
+    DiscreteTimeSequence out(n,start);
+    for (std::size_t i = 0; i < n; ++i) {
+        std::ptrdiff_t t = start+ static_cast<std::ptrdiff_t>(i);
+        out[i] = static_cast<float>(A * std::cos(omega*t + phi));
     }
     return out;
 }
