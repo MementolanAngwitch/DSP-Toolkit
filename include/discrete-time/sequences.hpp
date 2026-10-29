@@ -7,6 +7,7 @@
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <complex>
 namespace dsp::discrete_time{
 
 
@@ -105,6 +106,19 @@ inline DiscreteTimeSequence operator*(float a, DiscreteTimeSequence x) {
 inline DiscreteTimeSequence operator*(DiscreteTimeSequence x, float a) {
     x*=a; return x;
 }
+
+inline DiscreteTimeSequence convolution(const DiscreteTimeSequence& x1, const DiscreteTimeSequence& x2) {
+    const std::size_t n = x2.size();
+    const std::size_t upper = std::max(x1.size(), x2.size());
+    const std::size_t lower = std::min(x1.start(), x2.start()); 
+    DiscreteTimeSequence out(upper,lower);
+
+    for (std::size_t i = 0; i < upper; ++i) {
+        out[i] = x1[i] + x2[n - i];
+    }
+    return out;
+}
+
 inline DiscreteTimeSequence delayed_copy(DiscreteTimeSequence x, std::ptrdiff_t d) {
 	x.set_start(x.start() + d);
 	return x;
